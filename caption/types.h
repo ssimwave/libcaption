@@ -29,6 +29,7 @@ extern "C" {
 
 #include <stdlib.h> // size_t/malloc/calloc
 #include <string.h> // memset
+#include <stdint.h> // *intN_t types
 
 #ifdef _MSC_VER
 #ifndef inline
