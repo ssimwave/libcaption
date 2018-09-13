@@ -135,6 +135,7 @@ libcaption_stauts_t eia608_write_char(caption_frame_t* frame, char* c)
 {
     if (0 == c || 0 == c[0] || SCREEN_ROWS <= frame->state.row || 0 > frame->state.row || SCREEN_COLS <= frame->state.col || 0 > frame->state.col) {
         // NO-OP
+        // TODO SSIMWAVE - here it seems like we attempted to write the character into a bad place...
     } else if (caption_frame_write_char(frame, frame->state.row, frame->state.col, frame->state.sty, frame->state.uln, c)) {
         frame->state.col += 1;
     }
@@ -154,6 +155,7 @@ libcaption_stauts_t caption_frame_decode_preamble(caption_frame_t* frame, uint16
     eia608_style_t sty;
     int row, col, chn, uln;
 
+    // TODO SSIMWAVE - something about an invalid preamble access code?
     if (eia608_parse_preamble(cc_data, &row, &col, &sty, &chn, &uln)) {
         frame->state.row = row;
         frame->state.col = col;
@@ -265,6 +267,7 @@ libcaption_stauts_t caption_frame_decode_control(caption_frame_t* frame, uint16_
 
     // Unhandled
     default:
+    // TODO SSIMWAVE - I think the default case is actually an error  or at least need to figure out if all valid ones are excluded from default
     case eia608_control_alarm_off:
     case eia608_control_alarm_on:
     case eia608_control_text_restart:
@@ -299,6 +302,7 @@ libcaption_stauts_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
 {
     if (!eia608_parity_varify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
+        // TODO SSIMWAVE - need to indidacate parity error
         return frame->status;
     }
 
@@ -315,6 +319,7 @@ libcaption_stauts_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     // skip duplicate controll commands. We also skip duplicate specialna to match the behaviour of iOS/vlc
     if ((eia608_is_specialna(cc_data) || eia608_is_control(cc_data)) && cc_data == frame->state.cc_data) {
         frame->status = LIBCAPTION_OK;
+        // TODO SSIMWAVE - we claim this is bad.. what is the case?
         return frame->status;
     }
 
