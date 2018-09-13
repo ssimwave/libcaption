@@ -152,10 +152,11 @@ static int eia608_to_index(uint16_t cc_data, int* chan, int* c1, int* c2)
 
 int eia608_to_utf8(uint16_t c, int* chan, char* str1, char* str2)
 {
-    int c1, c2;
+    int c1, c2; // set to -1 by default
     int size = (int)eia608_to_index(c, chan, &c1, &c2);
     utf8_char_copy(str1, utf8_from_index(c1));
     utf8_char_copy(str2, utf8_from_index(c2));
+    // TODO SSIMWAVE - I think if size is 0, that means it was an error.
     return size;
 }
 

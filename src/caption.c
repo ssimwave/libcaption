@@ -278,7 +278,7 @@ libcaption_stauts_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     int chan;
     char char1[5], char2[5];
     size_t chars = eia608_to_utf8(cc_data, &chan, &char1[0], &char2[0]);
-
+    //TODO SSIMWAVE - if chars is 0 i think it is an error
     if (eia608_is_westeu(cc_data)) {
         // Extended charcters replace the previous charcter for back compatibility
         caption_frame_backspace(frame);
