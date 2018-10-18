@@ -78,9 +78,9 @@ typedef enum {
 
 typedef struct {
   caption_frame_status_detail_type types;
-} caption_frame_status_detail_t
+} caption_frame_status_detail_t;
 
-static inline bool status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
+static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
   return d->types & t;
 }
 
