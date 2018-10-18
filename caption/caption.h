@@ -72,6 +72,24 @@ typedef struct {
     uint16_t cc_data;
 } caption_frame_state_t;
 
+typedef enum {
+  LIBCAPTION_DETAIL_OFF_SCREEN
+} caption_frame_status_detail_type;
+
+typedef struct {
+  caption_frame_status_detail_type types;
+} caption_frame_status_detail_t
+
+static inline bool status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
+  return d->types & t;
+}
+
+static inline void status_detail_set(caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
+  d->types &= t;
+}
+
+void status_detail_init(caption_frame_status_detail_t* d);
+
 // timestamp and duration are in seconds
 typedef struct {
     double timestamp;
@@ -81,6 +99,7 @@ typedef struct {
     caption_frame_buffer_t back;
     caption_frame_buffer_t* write;
     libcaption_stauts_t status;
+    caption_frame_status_detail_t detail;
 } caption_frame_t;
 
 /*!

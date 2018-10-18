@@ -41,6 +41,11 @@ void caption_frame_state_clear(caption_frame_t* frame)
     frame->state = (caption_frame_state_t){ 0, 0, 0, SCREEN_ROWS - 1, 0, 0 }; // clear global state
 }
 
+void status_detail_init(caption_frame_status_detail_t* d)
+{
+    d->types = 0;
+}
+
 void caption_frame_init(caption_frame_t* frame)
 {
     xds_init(&frame->xds);
@@ -136,6 +141,7 @@ libcaption_stauts_t eia608_write_char(caption_frame_t* frame, char* c)
     if (0 == c || 0 == c[0] || SCREEN_ROWS <= frame->state.row || 0 > frame->state.row || SCREEN_COLS <= frame->state.col || 0 > frame->state.col) {
         // NO-OP
         // TODO SSIMWAVE - here it seems like we attempted to write the character into a bad place...
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_OFF_SCREEN);
     } else if (caption_frame_write_char(frame, frame->state.row, frame->state.col, frame->state.sty, frame->state.uln, c)) {
         frame->state.col += 1;
     }
