@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 void caption_frame_buffer_clear(caption_frame_buffer_t* buff)
 {

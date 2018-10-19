@@ -77,7 +77,7 @@ typedef enum {
 } caption_frame_status_detail_type;
 
 typedef struct {
-  caption_frame_status_detail_type types;
+  int types;
 } caption_frame_status_detail_t;
 
 static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
