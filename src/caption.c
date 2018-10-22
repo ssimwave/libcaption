@@ -53,6 +53,7 @@ void caption_frame_init(caption_frame_t* frame)
     caption_frame_state_clear(frame);
     caption_frame_buffer_clear(&frame->back);
     caption_frame_buffer_clear(&frame->front);
+    status_detail_init(&frame->detail);
 }
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -326,6 +327,7 @@ libcaption_stauts_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     // skip duplicate controll commands. We also skip duplicate specialna to match the behaviour of iOS/vlc
     if ((eia608_is_specialna(cc_data) || eia608_is_control(cc_data)) && cc_data == frame->state.cc_data) {
         frame->status = LIBCAPTION_OK;
+        status_detail_set(frame, LIBCAPTION_DETAIL_DUPLICATE_CONTROL);
         // TODO SSIMWAVE - we claim this is bad.. what is the case?
         return frame->status;
     }

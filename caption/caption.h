@@ -73,7 +73,8 @@ typedef struct {
 } caption_frame_state_t;
 
 typedef enum {
-  LIBCAPTION_DETAIL_OFF_SCREEN
+  LIBCAPTION_DETAIL_OFF_SCREEN,
+  LIBCAPTION_DETAIL_DUPLICATE_CONTROL,
 } caption_frame_status_detail_type;
 
 typedef struct {
