@@ -327,7 +327,7 @@ libcaption_stauts_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     // skip duplicate controll commands. We also skip duplicate specialna to match the behaviour of iOS/vlc
     if ((eia608_is_specialna(cc_data) || eia608_is_control(cc_data)) && cc_data == frame->state.cc_data) {
         frame->status = LIBCAPTION_OK;
-        status_detail_set(frame, LIBCAPTION_DETAIL_DUPLICATE_CONTROL);
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_DUPLICATE_CONTROL);
         // TODO SSIMWAVE - we claim this is bad.. what is the case?
         return frame->status;
     }
