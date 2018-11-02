@@ -74,7 +74,7 @@ void cea708_parse_user_data_type_strcture(const uint8_t* data, size_t size, user
 }
 
 // 00 00 00  06 C1  FF FC 34 B9 FF : onCaptionInfo.
-libcaption_stauts_t cea708_parse_h264(const uint8_t* data, size_t size, cea708_t* cea708)
+libcaption_status_t cea708_parse_h264(const uint8_t* data, size_t size, cea708_t* cea708)
 {
     if (3 > size) {
         goto error;
@@ -138,7 +138,7 @@ error:
     return LIBCAPTION_ERROR;
 }
 
-libcaption_stauts_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t* cea708)
+libcaption_status_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t* cea708)
 {
     if (!data || 7 > size) {
         return LIBCAPTION_ERROR;
@@ -262,10 +262,10 @@ void cea708_dump(cea708_t* cea708)
     }
 }
 
-libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708)
+libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708)
 {
     int i, count = cea708_cc_count(&cea708->user_data);
-    libcaption_stauts_t status = LIBCAPTION_OK;
+    libcaption_status_t status = LIBCAPTION_OK;
 
     if (GA94 == cea708->user_identifier) {
         for (i = 0; i < count; ++i) {

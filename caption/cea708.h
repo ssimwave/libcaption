@@ -97,15 +97,15 @@ int cea708_init(cea708_t* cea708, double timestamp); // will confgure using HLS 
 /*! \brief
     \param
 */
-libcaption_stauts_t cea708_parse_h264(const uint8_t* data, size_t size, cea708_t* cea708);
+libcaption_status_t cea708_parse_h264(const uint8_t* data, size_t size, cea708_t* cea708);
 /*! \brief
     \param
 */
-libcaption_stauts_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t* cea708);
+libcaption_status_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t* cea708);
 /*! \brief
     \param
 */
-libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708);
+libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708);
 /*! \brief
     \param
 */

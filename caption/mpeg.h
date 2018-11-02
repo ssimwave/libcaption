@@ -45,7 +45,7 @@ typedef struct {
     size_t size;
     uint8_t data[MAX_NALU_SIZE + 1];
     double dts, cts;
-    libcaption_stauts_t status;
+    libcaption_status_t status;
     // Priority queue for out of order frame processing
     // Should probablly be a linked list
     size_t front;
@@ -63,7 +63,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 /*! \brief
     \param
 */
-static inline libcaption_stauts_t mpeg_bitstream_status(mpeg_bitstream_t* packet) { return packet->status; }
+static inline libcaption_status_t mpeg_bitstream_status(mpeg_bitstream_t* packet) { return packet->status; }
 /*! \brief
         Flushes latent packets caused by out or order frames.
         Returns number of latent frames remaining, 0 when complete;
@@ -127,7 +127,7 @@ void sei_message_append(sei_t* sei, sei_message_t* msg);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_parse(sei_t* sei, const uint8_t* data, size_t size, double timestamp);
+libcaption_status_t sei_parse(sei_t* sei, const uint8_t* data, size_t size, double timestamp);
 /*! \brief
     \param
 */
@@ -192,19 +192,19 @@ void sei_dump_messages(sei_message_t* head, double timestamp);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_from_scc(sei_t* sei, const scc_t* scc);
+libcaption_status_t sei_from_scc(sei_t* sei, const scc_t* scc);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame);
+libcaption_status_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_from_caption_clear(sei_t* sei);
+libcaption_status_t sei_from_caption_clear(sei_t* sei);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame);
+libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame);
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus
 }
