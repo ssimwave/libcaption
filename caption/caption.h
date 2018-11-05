@@ -73,12 +73,16 @@ typedef struct {
 } caption_frame_state_t;
 
 typedef enum {
-  LIBCAPTION_DETAIL_OFF_SCREEN = 1 << 1,
-  LIBCAPTION_DETAIL_DUPLICATE_CONTROL = 1 << 2,
+  LIBCAPTION_DETAIL_OFF_SCREEN              = 1 << 1,
+  LIBCAPTION_DETAIL_DUPLICATE_CONTROL       = 1 << 2,
+  LIBCAPTION_UNKNOWN_COMMAND                = 1 << 3,
+  LIBCAPTION_INVALID_CHARACTER              = 1 << 4,
+  LIBCAPTION_PARITY_ERROR                   = 1 << 5
 } caption_frame_status_detail_type;
 
 typedef struct {
   int types;
+  int packetErrors;
 } caption_frame_status_detail_t;
 
 static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
