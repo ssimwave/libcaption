@@ -33,7 +33,6 @@
 static size_t _find_emulation_prevention_byte(const uint8_t* data, size_t size)
 {
     size_t offset = 2;
-
     while (offset < size) {
         if (0 == data[offset]) {
             // 0 0 X 3 //; we know X is zero
@@ -484,6 +483,8 @@ libcaption_status_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame)
 
             if (!cc_data) {
                 // We do't want to write bad data, so just ignore it.
+                // set status as invalid character
+                status_detail_set(&frame->detail, LIBCAPTION_INVALID_CHARACTER);
             } else if (eia608_is_basicna(prev_cc_data)) {
                 if (eia608_is_basicna(cc_data)) {
                     // previous and current chars are both basicna, combine them into current
@@ -675,6 +676,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 {
     if (MAX_NALU_SIZE <= packet->size) {
         packet->status = LIBCAPTION_ERROR;
+        ++(frame->detail.packetErrors);
         // fprintf(stderr, "LIBCAPTION_ERROR\n");
         return 0;
     }
