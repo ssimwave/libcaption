@@ -274,6 +274,7 @@ libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* ce
             uint16_t cc_data = cea708_cc_data(&cea708->user_data, i, &valid, &type);
 
             if (valid && cc_type_ntsc_cc_field_1 == type) {
+                // TODO: is it an error if valid is not true?
                 status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp));
             }
         }

@@ -166,8 +166,13 @@ libcaption_status_t caption_frame_decode_preamble(caption_frame_t* frame, uint16
     eia608_style_t sty;
     int row, col, chn, uln;
 
-    // TODO - something about an invalid preamble access code?
-    // for now eia608 always returns 1
+    uint8_t preamble_data = cc_data & 0x7f;
+    // if the data is not within the valid preamble range according to spec,
+    // should there be extra validation in place to check the higher bytes too?
+    if (!((preamble_data >= 0x40 && preamble_data <= 0x5f) || (preamble_data >= 0x60 && preamble_data <= 0x7f))){
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_PACKET);
+    }
+
     if (eia608_parse_preamble(cc_data, &row, &col, &sty, &chn, &uln)) {
         frame->state.row = row;
         frame->state.col = col;
@@ -471,6 +476,7 @@ size_t caption_frame_dump_buffer(caption_frame_t* frame, utf8_char_t* buf)
         EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_RIGHT, EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_LEFT,
         EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_RIGHT, EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_LEFT);
     total += bytes, buf += bytes;
+
     return total;
 }
 
