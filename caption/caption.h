@@ -78,7 +78,8 @@ typedef enum {
   LIBCAPTION_DETAIL_UNKNOWN_COMMAND         = 1 << 3,
   LIBCAPTION_DETAIL_INVALID_CHARACTER       = 1 << 4,
   LIBCAPTION_DETAIL_PARITY_ERROR            = 1 << 5,
-  LIBCAPTION_DETAIL_ABNORMAL_PACKET         = 1 << 6
+  LIBCAPTION_DETAIL_ABNORMAL_PACKET         = 1 << 6,
+  LIBCAPTION_DETAIL_UNKNOWN_TEXT_ATTRIBUTE  = 1 << 7
 } caption_frame_status_detail_type;
 
 typedef struct {

@@ -188,6 +188,14 @@ libcaption_status_t caption_frame_decode_midrowchange(caption_frame_t* frame, ui
     eia608_style_t sty;
     int chn, unl;
 
+
+    uint8_t high = cc_data & 0x7f;
+    uint8_t low = (cc_data & 0x7f00) >> 8;
+	if ( ((high != 0x11 && high != 0x19) || (low < 0x20 || low > 0x2f)))
+	{
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_UNKNOWN_TEXT_ATTRIBUTE);
+	}
+
     if (eia608_parse_midrowchange(cc_data, &chn, &sty, &unl)) {
         frame->state.sty = sty;
         frame->state.uln = unl;
@@ -284,7 +292,7 @@ libcaption_status_t caption_frame_decode_control(caption_frame_t* frame, uint16_
 
     // Unhandled
     default:
-        status_detail_set(&frame->detail, LIBCAPTION_UNKNOWN_COMMAND);
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_UNKNOWN_COMMAND);
     case eia608_control_alarm_off:
     case eia608_control_alarm_on:
     case eia608_control_text_restart:
@@ -300,7 +308,7 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     size_t chars = eia608_to_utf8(cc_data, &chan, &char1[0], &char2[0]);
     if (chars == 0) {
         // if chars is 0, it is an invalid character
-        status_detail_set(&frame->detail, LIBCAPTION_INVALID_CHARACTER);
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
     }
     if (eia608_is_westeu(cc_data)) {
         // Extended charcters replace the previous character for back compatibility
@@ -322,7 +330,7 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
 {
     if (!eia608_parity_varify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
-        status_detail_set(&frame->detail, LIBCAPTION_PARITY_ERROR);
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_PARITY_ERROR);
         return frame->status;
     }
 

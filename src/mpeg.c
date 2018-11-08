@@ -484,7 +484,7 @@ libcaption_status_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame)
             if (!cc_data) {
                 // We do't want to write bad data, so just ignore it.
                 // set status as invalid character
-                status_detail_set(&frame->detail, LIBCAPTION_INVALID_CHARACTER);
+                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
             } else if (eia608_is_basicna(prev_cc_data)) {
                 if (eia608_is_basicna(cc_data)) {
                     // previous and current chars are both basicna, combine them into current
