@@ -306,10 +306,27 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     int chan;
     char char1[5], char2[5];
     size_t chars = eia608_to_utf8(cc_data, &chan, &char1[0], &char2[0]);
+
+    // if chars is 0, it is an invalid character
     if (chars == 0) {
-        // if chars is 0, it is an invalid character
-        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
+        // if normal character
+        if (eia608_is_basicna(cc_data)){
+            uint8_t c1 = cc_data & 0x7f;
+            uint8_t c2 = (cc_data & 0x7f00) >> 8;
+            if (c1 < 0x20 || c2 < 0x20){
+                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
+            }
+        }
+        // if extended character
+        else if (eia608_is_westeu(cc_data)){
+            uint8_t high = cc_data & 0x7f;
+            uint8_t low = (cc_data & 0x7f00) >> 8;
+            if (!(low >= 0x20 && low <= 0x3f && (high == 0x12 || high == 0x13))){
+                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_EXT_CHARACTER);
+            }
+        }
     }
+
     if (eia608_is_westeu(cc_data)) {
         // Extended charcters replace the previous character for back compatibility
         caption_frame_backspace(frame);
@@ -326,7 +343,9 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     return LIBCAPTION_OK;
 }
 
-libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp)
+libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data,
+                                         double timestamp, rollup_state_machine* rsm,
+                                         popon_state_machine* psm)
 {
     if (!eia608_parity_varify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
@@ -360,6 +379,15 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
         frame->status = xds_decode(&frame->xds, cc_data);
     } else if (eia608_is_control(cc_data)) {
         frame->status = caption_frame_decode_control(frame, cc_data);
+        int channel;
+        if (frame->state.rup) {
+            update_rsm(&frame->detail, eia608_parse_control(cc_data, &channel),
+                       eia608_is_preamble(cc_data), rsm);
+        }
+        else {
+            update_psm(&frame->detail, eia608_parse_control(cc_data, &channel),
+                       eia608_is_preamble(cc_data), psm);
+        }
     } else if (eia608_is_basicna(cc_data) || eia608_is_specialna(cc_data) || eia608_is_westeu(cc_data)) {
 
         // Don't decode text if we dont know what mode we are in.
@@ -376,6 +404,18 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
         }
     } else if (eia608_is_preamble(cc_data)) {
         frame->status = caption_frame_decode_preamble(frame, cc_data);
+
+        // using eia608_tab_offset_0 as a random control code
+        // to ensure that we reach the PAC state. Any control code
+        // is fine as long as it's not "resume caption loading"
+        if (frame->state.rup) {
+            update_rsm(&frame->detail, eia608_tab_offset_0,
+                       eia608_is_preamble(cc_data), rsm);
+        }
+        else {
+            update_psm(&frame->detail, eia608_tab_offset_0,
+                       eia608_is_preamble(cc_data), psm);
+        }
     } else if (eia608_is_midrowchange(cc_data)) {
         frame->status = caption_frame_decode_midrowchange(frame, cc_data);
     }
@@ -493,4 +533,157 @@ void caption_frame_dump(caption_frame_t* frame)
     utf8_char_t buff[CAPTION_FRAME_DUMP_BUF_SIZE];
     caption_frame_dump_buffer(frame, buff);
     fprintf(stderr, "%s\n", buff);
+}
+
+void init_rsm(rollup_state_machine *rsm) {
+    rsm->cur_state = 0;
+    rsm->next_state = 0;
+    rsm->ru123 = 0;
+    rsm->cr = 0;
+    rsm->pac = 0;
+    rsm->oos_error = 0;
+    rsm->missing_error = 0;
+}
+
+void update_rsm(caption_frame_status_detail_t* details, eia608_control_t cmd, int pac,
+                rollup_state_machine *rsm){
+
+    if (cmd == eia608_control_roll_up_2 || cmd == eia608_control_roll_up_3 || cmd == eia608_control_roll_up_4)  {
+        if (rsm->ru123) {
+            if (!(rsm->next_state & (1 << RU123))) {
+                status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_OOS_ERROR);
+                status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_MISSING_ERROR);
+                status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_ERROR);
+            }
+        }
+        //Beginning of a new sequence of roll-up commands
+        init_rsm(rsm);
+        rsm->cur_state = 1 << RU123;
+        rsm->next_state = (1 << CR);
+        ++rsm->ru123;
+        return;
+    }
+
+    if (rsm->ru123) {
+
+        if (pac) {
+            if (!(rsm->next_state & (1 << PACR)))
+                rsm->oos_error = 1;
+
+            rsm->cur_state  = 1 << PACR;
+            rsm->next_state = (1 << RU123);	;
+            ++rsm->pac;
+
+            if (!rsm->cr)
+                rsm->missing_error = 1;
+
+            if (rsm->oos_error) { status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_OOS_ERROR); }
+            if (rsm->missing_error) { status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_MISSING_ERROR); }
+            if (rsm->oos_error || rsm->missing_error)
+                status_detail_set(details, LIBCAPTION_DETAIL_ROLLUP_ERROR);
+            init_rsm(rsm);
+            return;
+        }
+        if (cmd == eia608_control_carriage_return) {
+            if (!(rsm->next_state & (1 << CR)))
+                rsm->oos_error = 1;
+
+            rsm->cur_state  = 1 << CR;
+            rsm->next_state = (1 << PACR);	
+            ++rsm->cr;
+        }
+    }
+}
+
+
+void init_psm(popon_state_machine *psm) {
+    psm->cur_state = 0;
+    psm->next_state = 0;
+    psm->rcl = 0;
+    psm->enm = 0;
+    psm->pac = 0;
+    psm->toff = 0;
+    psm->edm = 0;
+    psm->eoc = 0;
+    psm->oos_error = 0;
+    psm->missing_error = 0;
+}
+
+void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, int pac,
+                popon_state_machine *psm){
+
+    if (cmd == eia608_control_resume_caption_loading) {
+        if (psm->rcl) {
+            if (!(psm->next_state & (1 << RCL))) {
+                //if we are here we know that COM_ENDOFCAPTION is missing.
+                //Missing command automatically leads to oos error.
+                //Entering this block of code also marks the end of the previous
+                //pop-on sequence of commands. The following errors are being
+                //flagged for the previous sequence
+                status_detail_set(details, LIBCAPTION_DETAIL_POPON_OOS_ERROR);
+                status_detail_set(details, LIBCAPTION_DETAIL_POPON_MISSING_ERROR);
+                status_detail_set(details, LIBCAPTION_DETAIL_POPON_ERROR);
+            }
+        }
+        //Beginning of a new sequence of pop-on commands
+        init_psm(psm);
+        psm->cur_state = 1 << RCL;
+        psm->next_state = (1 << ENM | 1 << PAC);
+        ++psm->rcl;
+        return;
+   }
+   //Once COM_RESUMECAPTIONLOADING is seen then we proceed with processing the
+   //rest if the commands in the sequence
+    if (psm->rcl) {
+
+        if (pac) {
+            if (!(psm->next_state & (1 << PAC)))
+                psm->oos_error = 1;
+
+            psm->cur_state  = 1 << PAC;
+            psm->next_state = (1 << PAC | 1 << TOFF | 1 << EDM);	;
+            ++psm->pac;
+            return;
+        }
+
+        switch (cmd) {
+            case eia608_control_erase_non_displayed_memory:
+            psm->cur_state = 1 << ENM;
+            psm->next_state = 1 << PAC;	
+            break;
+
+            case eia608_tab_offset_1:
+            case eia608_tab_offset_2:
+            case eia608_tab_offset_3:
+            psm->cur_state  = 1 << TOFF;
+            psm->next_state = (1 << PAC | 1 << EDM);	
+            break;
+						
+            case eia608_control_erase_display_memory:
+            if (!(psm->next_state & (1 << EDM)))
+                psm->oos_error = 1;
+
+            psm->cur_state  = 1 << EDM;
+            psm->next_state = (1 << EOC);	
+            ++psm->edm;
+            break;
+
+            case eia608_control_end_of_caption:
+            if (!(psm->next_state & (1 << EOC)))
+                psm->oos_error = 1;
+
+            psm->cur_state  = 1 << EOC;
+            psm->next_state = (1 << RCL);	
+            ++psm->eoc;
+            if (!psm->pac || !psm->edm)
+                psm->missing_error = 1;
+
+            if (psm->oos_error) { status_detail_set(details, LIBCAPTION_DETAIL_POPON_OOS_ERROR); }
+            if (psm->missing_error) { status_detail_set(details, LIBCAPTION_DETAIL_POPON_MISSING_ERROR); }
+            if (psm->oos_error || psm->missing_error)
+                status_detail_set(details, LIBCAPTION_DETAIL_POPON_ERROR);
+            init_psm(psm);
+            break;
+        }
+    }
 }

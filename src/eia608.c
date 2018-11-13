@@ -137,13 +137,13 @@ static int eia608_to_index(uint16_t cc_data, int* chan, int* c1, int* c2)
         return 1;
     }
 
-    if (0x1220 <= cc_data && 0x1240 > cc_data) {
+    if (0x1220 <= cc_data && 0x123F > cc_data) {
         // Extended Western European character set, Spanish/Miscellaneous/French
         (*c1) = cc_data - 0x1220 + 0x70;
         return 1;
     }
 
-    if (0x1320 <= cc_data && 0x1340 > cc_data) {
+    if (0x1320 <= cc_data && 0x133F > cc_data) {
         // Extended Western European character set, Portuguese/German/Danish
         (*c1) = cc_data - 0x1320 + 0x90;
         return 1;

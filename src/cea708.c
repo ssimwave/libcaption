@@ -25,7 +25,6 @@
 #include <float.h>
 #include <memory.h>
 #include <stdio.h>
-
 int cea708_cc_count(user_data_t* data)
 {
     return data->cc_count;
@@ -262,7 +261,8 @@ void cea708_dump(cea708_t* cea708)
     }
 }
 
-libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708)
+libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708,
+                                            rollup_state_machine* rsm, popon_state_machine* psm)
 {
     int i, count = cea708_cc_count(&cea708->user_data);
     libcaption_status_t status = LIBCAPTION_OK;
@@ -275,7 +275,7 @@ libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* ce
 
             if (valid && cc_type_ntsc_cc_field_1 == type) {
                 // TODO: is it an error if valid is not true?
-                status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp));
+                status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp, rsm, psm));
             }
         }
     }
