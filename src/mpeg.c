@@ -375,7 +375,9 @@ libcaption_status_t sei_parse(sei_t* sei, const uint8_t* data, size_t size, doub
     return LIBCAPTION_OK;
 }
 ////////////////////////////////////////////////////////////////////////////////
-libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame)
+libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame,
+                                         rollup_state_machine* rsm,
+                                         popon_state_machine* psm)
 {
     cea708_t cea708;
     sei_message_t* msg;
@@ -386,7 +388,7 @@ libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame)
     for (msg = sei_message_head(sei); msg; msg = sei_message_next(msg)) {
         if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
             cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), &cea708);
-            status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708));
+            status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708, rsm, psm));
         }
     }
 
@@ -484,7 +486,7 @@ libcaption_status_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame)
             if (!cc_data) {
                 // We do't want to write bad data, so just ignore it.
                 // set status as invalid character
-                status_detail_set(&frame->detail, LIBCAPTION_INVALID_CHARACTER);
+                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
             } else if (eia608_is_basicna(prev_cc_data)) {
                 if (eia608_is_basicna(cc_data)) {
                     // previous and current chars are both basicna, combine them into current
@@ -651,11 +653,12 @@ again:
 }
 
 // Removes items from front
-size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame)
+size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, rollup_state_machine* rsm,
+                            popon_state_machine* psm)
 {
     if (packet->latent) {
         cea708_t* cea708 = _mpeg_bitstream_cea708_front(packet);
-        packet->status = libcaption_status_update(LIBCAPTION_OK, cea708_to_caption_frame(frame, cea708));
+        packet->status = libcaption_status_update(LIBCAPTION_OK, cea708_to_caption_frame(frame, cea708, rsm, psm));
         packet->front = (packet->front + 1) % MAX_REFRENCE_FRAMES;
         --packet->latent;
     }
@@ -663,16 +666,19 @@ size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame)
     return packet->latent;
 }
 
-void _mpeg_bitstream_cea708_sort_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, double dts)
+void _mpeg_bitstream_cea708_sort_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, double dts,
+                                       rollup_state_machine* rsm, popon_state_machine* psm)
 {
     _mpeg_bitstream_cea708_sort(packet);
     // Loop will terminate on LIBCAPTION_READY
     while (packet->latent && packet->status == LIBCAPTION_OK && _mpeg_bitstream_cea708_front(packet)->timestamp < dts) {
-        mpeg_bitstream_flush(packet, frame);
+        mpeg_bitstream_flush(packet, frame, rsm, psm);
     }
 }
 
-size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts)
+size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size,
+                            unsigned stream_type, double dts, double cts, rollup_state_machine* rsm,
+                            popon_state_machine* psm)
 {
     if (MAX_NALU_SIZE <= packet->size) {
         packet->status = LIBCAPTION_ERROR;
@@ -701,7 +707,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
             if (STREAM_TYPE_H262 == stream_type && scpos > header_size) {
                 cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
                 packet->status = libcaption_status_update(packet->status, cea708_parse_h262(&packet->data[header_size], scpos - header_size, cea708));
-                _mpeg_bitstream_cea708_sort_flush(packet, frame, dts);
+                _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, rsm, psm);
             }
             break;
         case H264_SEI_PACKET:
@@ -713,7 +719,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
                     if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
                         cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
                         packet->status = libcaption_status_update(packet->status, cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), cea708));
-                        _mpeg_bitstream_cea708_sort_flush(packet, frame, dts);
+                        _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, rsm, psm);
                     }
                 }
                 sei_free(&sei);

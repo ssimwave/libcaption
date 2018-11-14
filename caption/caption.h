@@ -75,9 +75,18 @@ typedef struct {
 typedef enum {
   LIBCAPTION_DETAIL_OFF_SCREEN              = 1 << 1,
   LIBCAPTION_DETAIL_DUPLICATE_CONTROL       = 1 << 2,
-  LIBCAPTION_UNKNOWN_COMMAND                = 1 << 3,
-  LIBCAPTION_INVALID_CHARACTER              = 1 << 4,
-  LIBCAPTION_PARITY_ERROR                   = 1 << 5
+  LIBCAPTION_DETAIL_UNKNOWN_COMMAND         = 1 << 3,
+  LIBCAPTION_DETAIL_INVALID_CHARACTER       = 1 << 4,
+  LIBCAPTION_DETAIL_PARITY_ERROR            = 1 << 5,
+  LIBCAPTION_DETAIL_ABNORMAL_PACKET         = 1 << 6,
+  LIBCAPTION_DETAIL_UNKNOWN_TEXT_ATTRIBUTE  = 1 << 7,
+  LIBCAPTION_DETAIL_INVALID_EXT_CHARACTER   = 1 << 8,
+  LIBCAPTION_DETAIL_ROLLUP_OOS_ERROR        = 1 << 9,
+  LIBCAPTION_DETAIL_ROLLUP_MISSING_ERROR    = 1 << 10,
+  LIBCAPTION_DETAIL_ROLLUP_ERROR            = 1 << 11,
+  LIBCAPTION_DETAIL_POPON_OOS_ERROR         = 1 << 12,
+  LIBCAPTION_DETAIL_POPON_MISSING_ERROR     = 1 << 13,
+  LIBCAPTION_DETAIL_POPON_ERROR             = 1 << 14
 } caption_frame_status_detail_type;
 
 typedef struct {
@@ -142,10 +151,63 @@ int caption_frame_write_char(caption_frame_t* frame, int row, int col, eia608_st
     \param
 */
 const utf8_char_t* caption_frame_read_char(caption_frame_t* frame, int row, int col, eia608_style_t* style, int* underline);
+
+enum POPON_CMD_SEQ {
+    RCL = 1,
+    ENM,
+    PAC,
+    TOFF,
+    EDM,
+    EOC
+};
+
+enum ROLLUP_CMD_SEQ {
+    RU123 = 1,
+    CR,
+    PACR
+};
+
+/**
+ * Pop-on captions are delivered through a sequence of commands.
+ * The state machine, through state transitions, captures whether a
+ * command is out of sequence or is missing.
+ * A missing command automatically leads to out of sequence command error.
+ */
+typedef struct popon_state_machine popon_state_machine;
+struct popon_state_machine {
+    int cur_state;
+    int next_state;
+    int rcl;
+    int enm;
+    int pac;
+    int toff;
+    int edm;
+    int eoc;
+    int oos_error;
+    int missing_error;
+};
+
+typedef struct rollup_state_machine rollup_state_machine;
+struct rollup_state_machine {
+    int cur_state;
+    int next_state;
+    int ru123;
+    int cr;
+    int pac;
+    int oos_error;
+    int missing_error;
+};
+
+void init_rsm(rollup_state_machine *rsm);
+void update_rsm(caption_frame_status_detail_t* details, eia608_control_t cmd, int pac,
+                rollup_state_machine *rsm);
+void init_psm(popon_state_machine *psm);
+void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, int pac,
+                popon_state_machine *psm);
 /*! \brief
     \param
 */
-libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp);
+libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp, rollup_state_machine* rsm, popon_state_machine* psm);
 /*! \brief
     \param
 */

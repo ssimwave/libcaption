@@ -40,6 +40,7 @@ const char* eia608_style_map[] = {
     "italics",
 };
 
+// encoding
 static inline uint16_t eia608_row_pramble(int row, int chan, int x, int underline)
 {
     row = eia608_reverse_row_map[row & 0x0F];
@@ -50,6 +51,7 @@ uint16_t eia608_row_column_pramble(int row, int col, int chan, int underline) { 
 uint16_t eia608_row_style_pramble(int row, int chan, eia608_style_t style, int underline) { return eia608_row_pramble(row, chan, style, underline); }
 uint16_t eia608_midrow_change(int chan, eia608_style_t style, int underline) { return eia608_parity(0x1120 | ((chan << 11) & 0x0800) | ((style << 1) & 0x000E) | (underline & 0x0001)); }
 
+// decoding
 int eia608_parse_preamble(uint16_t cc_data, int* row, int* col, eia608_style_t* style, int* chan, int* underline)
 {
     (*row) = eia608_row_map[((0x0700 & cc_data) >> 7) | ((0x0020 & cc_data) >> 5)];
@@ -135,13 +137,13 @@ static int eia608_to_index(uint16_t cc_data, int* chan, int* c1, int* c2)
         return 1;
     }
 
-    if (0x1220 <= cc_data && 0x1240 > cc_data) {
+    if (0x1220 <= cc_data && 0x123F > cc_data) {
         // Extended Western European character set, Spanish/Miscellaneous/French
         (*c1) = cc_data - 0x1220 + 0x70;
         return 1;
     }
 
-    if (0x1320 <= cc_data && 0x1340 > cc_data) {
+    if (0x1320 <= cc_data && 0x133F > cc_data) {
         // Extended Western European character set, Portuguese/German/Danish
         (*c1) = cc_data - 0x1320 + 0x90;
         return 1;

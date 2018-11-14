@@ -59,7 +59,9 @@ void mpeg_bitstream_init(mpeg_bitstream_t* packet);
 /*! \brief
     \param
 */
-size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts);
+size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size,
+                            unsigned stream_type, double dts, double cts, rollup_state_machine* rsm,
+                            popon_state_machine* psm);
 /*! \brief
     \param
 */
@@ -69,7 +71,8 @@ static inline libcaption_status_t mpeg_bitstream_status(mpeg_bitstream_t* packet
         Returns number of latent frames remaining, 0 when complete;
     \param
 */
-size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame);
+size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, rollup_state_machine* rsm,
+                            popon_state_machine* psm);
 ////////////////////////////////////////////////////////////////////////////////
 typedef enum {
     sei_type_buffering_period = 0,
@@ -204,7 +207,9 @@ libcaption_status_t sei_from_caption_clear(sei_t* sei);
 /*! \brief
     \param
 */
-libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame);
+libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame,
+                                         rollup_state_machine* rsm,
+                                         popon_state_machine* psm);
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus
 }
