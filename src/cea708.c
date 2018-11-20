@@ -54,7 +54,7 @@ int cea708_init(cea708_t* cea708, double timestamp)
     return 1;
 }
 
-void cea708_parse_user_data_type_strcture(const uint8_t* data, size_t size, user_data_t* user_data)
+void cea708_parse_user_data_type_structure(const uint8_t* data, size_t size, user_data_t* user_data)
 {
     memset(user_data, 0, sizeof(user_data_t));
     user_data->process_em_data_flag = !!(data[0] & 0x80);
@@ -123,7 +123,7 @@ libcaption_status_t cea708_parse_h264(const uint8_t* data, size_t size, cea708_t
     }
 
     if (3 == cea708->user_data_type_code && 2 <= size) {
-        cea708_parse_user_data_type_strcture(data, size, &cea708->user_data);
+        cea708_parse_user_data_type_structure(data, size, &cea708->user_data);
     } else if (4 == cea708->user_data_type_code) {
         // additional_CEA_608_data
     } else if (5 == cea708->user_data_type_code) {
@@ -146,7 +146,7 @@ libcaption_status_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t
     cea708->user_identifier = ((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]);
     cea708->user_data_type_code = data[4];
     if (3 == cea708->user_data_type_code) {
-        cea708_parse_user_data_type_strcture(data + 5, size - 5, &cea708->user_data);
+        cea708_parse_user_data_type_structure(data + 5, size - 5, &cea708->user_data);
     }
 
     return LIBCAPTION_OK;
@@ -273,9 +273,8 @@ libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* ce
             cea708_cc_type_t type;
             uint16_t cc_data = cea708_cc_data(&cea708->user_data, i, &valid, &type);
 
-            if (valid && cc_type_ntsc_cc_field_1 == type) {
-                // TODO: is it an error if valid is not true?
-                status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp, rsm, psm));
+            if (valid && (cc_type_ntsc_cc_field_1 == type || cc_type_ntsc_cc_field_2 == type)) {
+                status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp, rsm, psm, type));
             }
         }
     }

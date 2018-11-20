@@ -60,7 +60,7 @@ static inline uint16_t eia608_parity(uint16_t cc_data) { return eia608_parity_wo
 /*! \brief
     \param
 */
-static inline int eia608_parity_varify(uint16_t cc_data) { return eia608_parity_word(cc_data) == cc_data ? 1 : 0; }
+static inline int eia608_parity_verify(uint16_t cc_data) { return eia608_parity_word(cc_data) == cc_data ? 1 : 0; }
 /*! \brief
     \param
 */

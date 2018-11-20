@@ -191,10 +191,10 @@ libcaption_status_t caption_frame_decode_midrowchange(caption_frame_t* frame, ui
 
     uint8_t high = cc_data & 0x7f;
     uint8_t low = (cc_data & 0x7f00) >> 8;
-	if ( ((high != 0x11 && high != 0x19) || (low < 0x20 || low > 0x2f)))
-	{
+    if ( ((high != 0x11 && high != 0x19) || (low < 0x20 || low > 0x2f)))
+    {
         status_detail_set(&frame->detail, LIBCAPTION_DETAIL_UNKNOWN_TEXT_ATTRIBUTE);
-	}
+    }
 
     if (eia608_parse_midrowchange(cc_data, &chn, &sty, &unl)) {
         frame->state.sty = sty;
@@ -345,9 +345,9 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
 
 libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data,
                                          double timestamp, rollup_state_machine* rsm,
-                                         popon_state_machine* psm)
+                                         popon_state_machine* psm, cea708_cc_type_t type)
 {
-    if (!eia608_parity_varify(cc_data)) {
+    if (!eia608_parity_verify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
         status_detail_set(&frame->detail, LIBCAPTION_DETAIL_PARITY_ERROR);
         return frame->status;
@@ -373,9 +373,9 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
 
     frame->state.cc_data = cc_data;
 
-    if (frame->xds.state) {
+    if (cc_type_ntsc_cc_field_2 == type && frame->xds.state) {
         frame->status = xds_decode(&frame->xds, cc_data);
-    } else if (eia608_is_xds(cc_data)) {
+    } else if (cc_type_ntsc_cc_field_2 == type && eia608_is_xds(cc_data)) {
         frame->status = xds_decode(&frame->xds, cc_data);
     } else if (eia608_is_control(cc_data)) {
         frame->status = caption_frame_decode_control(frame, cc_data);
@@ -422,7 +422,6 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
 
     return frame->status;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 int caption_frame_from_text(caption_frame_t* frame, const utf8_char_t* data)
 {
