@@ -202,7 +202,7 @@ void eia608_dump(uint16_t cc_data)
     char1[0] = char2[0] = 0;
     int row, col, chan, underline;
 
-    if (!eia608_parity_varify(cc_data)) {
+    if (!eia608_parity_verify(cc_data)) {
         text = "parity failed";
     } else if (0 == eia608_parity_strip(cc_data)) {
         text = "pad";

@@ -29,7 +29,7 @@ extern "C" {
 
 #include "eia608.h"
 #include "utf8.h"
-#include "xds.h"
+#include "xds_data.h"
 
 // ssize_t is POSIX and does not exist on Windows
 #if defined(_MSC_VER)
@@ -94,7 +94,10 @@ typedef enum {
   LIBCAPTION_DETAIL_ROLLUP_ERROR            = 1 << 11,
   LIBCAPTION_DETAIL_POPON_OOS_ERROR         = 1 << 12,
   LIBCAPTION_DETAIL_POPON_MISSING_ERROR     = 1 << 13,
-  LIBCAPTION_DETAIL_POPON_ERROR             = 1 << 14
+  LIBCAPTION_DETAIL_POPON_ERROR             = 1 << 14,
+  LIBCAPTION_XDS_INVALID_CHARACTERS         = 1 << 15,
+  LIBCAPTION_XDS_CHECKSUM_ERROR             = 1 << 16,
+  LIBCAPTION_XDS_INVALID_PKT_STRUCTURE      = 1 << 17
 } caption_frame_status_detail_type;
 
 typedef struct {

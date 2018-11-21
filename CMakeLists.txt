@@ -71,6 +71,7 @@ set(CAPTION_HEADERS
   caption/utf8.h
   caption/vtt.h
   caption/xds.h
+  caption/xds_data.h
 )
 
 add_library(caption ${CAPTION_SOURCES})
