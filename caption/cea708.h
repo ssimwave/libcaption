@@ -31,13 +31,6 @@ extern "C" {
 #define CEA608_MAX_SIZE (255)
 
 ////////////////////////////////////////////////////////////////////////////////
-typedef enum {
-    cc_type_ntsc_cc_field_1 = 0,
-    cc_type_ntsc_cc_field_2 = 1,
-    cc_type_dtvcc_packet_data = 2,
-    cc_type_dtvcc_packet_start = 3,
-} cea708_cc_type_t;
-
 typedef struct {
     unsigned int marker_bits : 5;
     unsigned int cc_valid : 1;

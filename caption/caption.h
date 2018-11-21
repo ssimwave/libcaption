@@ -73,6 +73,14 @@ typedef struct {
 } caption_frame_state_t;
 
 typedef enum {
+    cc_type_ntsc_cc_field_1 = 0,
+    cc_type_ntsc_cc_field_2 = 1,
+    cc_type_dtvcc_packet_data = 2,
+    cc_type_dtvcc_packet_start = 3,
+} cea708_cc_type_t;
+
+
+typedef enum {
   LIBCAPTION_DETAIL_OFF_SCREEN              = 1 << 1,
   LIBCAPTION_DETAIL_DUPLICATE_CONTROL       = 1 << 2,
   LIBCAPTION_DETAIL_UNKNOWN_COMMAND         = 1 << 3,
@@ -207,7 +215,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
 /*! \brief
     \param
 */
-libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp, rollup_state_machine* rsm, popon_state_machine* psm);
+libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp, rollup_state_machine* rsm, popon_state_machine* psm, cea708_cc_type_t type);
 /*! \brief
     \param
 */
