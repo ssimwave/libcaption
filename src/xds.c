@@ -69,11 +69,14 @@ libcaption_status_t xds_decode(caption_frame_t* frame, uint16_t cc)
     switch (xds->state) {
         default:
         case 0: // A control code was seen after a non-XDS data stream
-            ;
+            xds->state = 1;
             uint8_t control_code = (cc & 0x0F00) >> 8;
             uint8_t type_code = (cc & 0x00FF);
 
+            // specifications don't cover control code of 0
+            // so switching state back to 0 (might be wrong behaviour)
             if (control_code == 0) {
+                xds->state = 0;
                 status_detail_set(&frame->detail, LIBCAPTION_XDS_INVALID_PKT_STRUCTURE);
                 return LIBCAPTION_ERROR;
             }
@@ -92,12 +95,10 @@ libcaption_status_t xds_decode(caption_frame_t* frame, uint16_t cc)
                 packet->type_code = type_code;
                 packet->size = 0;
 
-                xds->state = 1;
                 xds->active_class_index = (control_code - 1) / 2;
             } else { // if continue code
                 if (xds->packets[(control_code / 2) - 1].class_code == control_code + 1) {
-                    // set active state and class type
-                    xds->state = 1;
+                    // set class type
                     xds->active_class_index = (control_code / 2) - 1;
                 } else {
                     // this packet class was inactive, and continue code is meaningless
@@ -109,7 +110,7 @@ libcaption_status_t xds_decode(caption_frame_t* frame, uint16_t cc)
             return LIBCAPTION_OK;
 
         case 1: // in the middle of an XDS data stream
-            //check if the packet is interrupted in a correct way
+            // check if the packet is interrupted in a correct way
             if ((cc & 0xF000) == 0x1000) {
                 xds->state = 0;
                 return LIBCAPTION_OK;
@@ -156,13 +157,11 @@ libcaption_status_t xds_decode(caption_frame_t* frame, uint16_t cc)
             //check that the information characters are between defined limits at (ANSI-CTA-608-E R-2014 8.6.1)
             if(!((char_1 == 0 || char_1 >= 0x20) &&
                  (char_2 == 0 || char_2 >= 0x20))) {
-                xds->state = 0;
                 status_detail_set(&frame->detail, LIBCAPTION_XDS_INVALID_CHARACTERS);
                 return LIBCAPTION_ERROR;
             }
 
             if (packet->size >= 32) { //fail because payload larger than standard allows (ANSI-CTA-608-E R-2014 8.6.1)
-                xds->state = 0;
                 status_detail_set(&frame->detail, LIBCAPTION_XDS_INVALID_PKT_STRUCTURE);
                 return LIBCAPTION_ERROR;
             }

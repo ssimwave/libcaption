@@ -39,13 +39,18 @@ void caption_frame_state_clear(caption_frame_t* frame)
 {
     frame->write = 0;
     frame->timestamp = -1;
-    frame->state = (caption_frame_state_t){ 0, 0, 0, SCREEN_ROWS - 1, 0, 0 }; // clear global state
+    frame->state = (caption_frame_state_t){ 0, 0, 0, SCREEN_ROWS - 1, 0, 0 ,
+                                            (dtvcc_packet_t){0}}; // clear global state
 }
 
 void status_detail_init(caption_frame_status_detail_t* d)
 {
     d->types = 0;
+    d->num_services_708 = 0;
     d->packetErrors = 0;
+    d->packetLoss = 0;
+    d->hasCEA608 = 0;
+    d->hasCEA708 = 0;
 }
 
 void caption_frame_init(caption_frame_t* frame)
@@ -372,7 +377,6 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     }
 
     frame->state.cc_data = cc_data;
-
     if (cc_type_ntsc_cc_field_2 == type && frame->xds.state) {
         frame->status = xds_decode(frame, cc_data);
     } else if (cc_type_ntsc_cc_field_2 == type && eia608_is_xds(cc_data)) {
@@ -421,6 +425,226 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     }
 
     return frame->status;
+}
+
+// as per specifications
+int c1_code_length[32] = { 1, 1, 1, 1, 1, 1, 1, 1,
+                           2, 2, 2, 2, 2, 2, 1, 1,
+                           3, 4, 3, 1, 1, 1, 1, 5,
+                           7, 7, 7, 7, 7, 7, 7, 7};
+
+libcaption_status_t caption_frame_decode_dtvcc(caption_frame_t* frame, uint16_t cc_data,
+                                               double timestamp, cea708_cc_type_t type){
+    dtvcc_packet_t *packet = &frame->state.dtvcc_packet;
+    if (cc_type_dtvcc_packet_header == type) {
+        uint8_t current_sequence_number = (cc_data >> 14) & 0x3;    // most sig 2 bits
+        if (current_sequence_number != (packet->sequence_number + 1) % 4){
+            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_SEQUENCE_DISCONTINUITY);
+        }
+
+        packet->seen_sequences |= 1 << current_sequence_number;
+        if (++(packet->sequence_count) == 4){
+            if (packet->seen_sequences != 0xf){
+                ++(frame->detail.packetLoss);
+            }
+            packet->sequence_count %= 4;
+            packet->seen_sequences = 0;
+        }
+
+        packet->sequence_number = current_sequence_number;
+        packet->packet_size = (cc_data >> 8) & 0x2f;                // 6 bits
+        packet->service_number = (cc_data >> 5) & 0x7;              // 3 bits
+        packet->block_size =  cc_data & 0x1f;                       // 5 bits
+        if (!(packet->block_size <= 31)){
+            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_SERVICE_BLOCK);
+        }
+        frame->detail.num_services_708 = (frame->detail.num_services_708 > packet->service_number) ?
+                                          frame->detail.num_services_708 : packet->service_number;
+
+        packet->is_extended_header = 0;
+        // extended header
+        if (packet->service_number == 7 && packet->block_size != 0){
+            packet->is_extended_header = 1;
+        }
+    }
+    // parsing dtvcc data packet
+    else if (packet->is_extended_header){
+        packet->service_number = cc_data & 0x3F;
+        packet->is_extended_header = 0;
+
+        frame->detail.num_services_708 = (frame->detail.num_services_708 > packet->service_number) ?
+                                          frame->detail.num_services_708 : packet->service_number;
+    }
+    else {
+        // null header or past service block bound
+        if (packet->service_number == 0 || packet->block_size <= 0){
+            return LIBCAPTION_OK;
+        }
+
+        uint8_t bytes[2] = {(cc_data & 0xff00) >> 8, cc_data & 0xff};
+        // reading cc_data in byte increments (left to right)
+        for (int i = 0; i < 2; ++i){
+            uint8_t byte = bytes[i];
+            --(packet->block_size);
+
+            if (0 == packet->bytes_left){
+                packet->code = byte;
+                packet->is_ext_code = 0;
+
+                // C0_EXT1
+                if (byte == 0x10){
+                    packet->is_ext_code = 1;
+                }
+                // C0 or C2 codes
+                else if (byte <= 0x1f){
+                    if (packet->is_ext_code){
+                        if (byte <= 0x07) { packet->bytes_left = 0; }
+                        else if (byte <= 0x0f) { packet->bytes_left = 1; }
+                        else if (byte <= 0x17) { packet->bytes_left = 2; }
+                        else { packet->bytes_left = 3; }
+                    }
+                    else {
+                        if (byte <= 0xf){
+                            switch (byte){
+                                case 0x0: // NUL
+                                case 0x3: // ETX
+                                case 0x8: // BS
+                                case 0xC: // FF
+                                case 0xD: // CR
+                                case 0xE: // HCR
+                                    break;
+                                default:
+                                    status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_CONTROL_CODE);
+                            }
+                            packet->bytes_left = 0;
+                        }
+                        else if (byte < 0x17) {
+                            // does not include EXT1
+                            packet->bytes_left = 1;
+                        }
+                        else {
+                            packet->bytes_left = 2;
+                        }
+                    }
+                }
+                // G0 or G2 codes
+                else if (byte <= 0x7f){
+                    if (packet->is_ext_code){
+                        switch (byte){
+                            // All used characters in G2
+                            case 0x20:
+                            case 0x21:
+                            case 0x25:
+                            case 0x2A:
+                            case 0x2C:
+                            case 0x30:
+                            case 0x31:
+                            case 0x32:
+                            case 0x33:
+                            case 0x34:
+                            case 0x35:
+                            case 0x39:
+                            case 0x3A:
+                            case 0x3C:
+                            case 0x3D:
+                            case 0x3F:
+                            case 0x76:
+                            case 0x77:
+                            case 0x78:
+                            case 0x79:
+                            case 0x7A:
+                            case 0x7B:
+                            case 0x7C:
+                            case 0x7D:
+                            case 0x7E:
+                            case 0x7F:
+                                break;
+                            default:
+                                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_CHARACTER);
+                        }
+                    }
+                    packet->bytes_left = 0;
+                }
+                // C1 or C3 codes
+                else if (byte <= 0x9f){
+                    if (packet->is_ext_code){
+                        if (byte <= 0x80){
+                            // this should never happen
+                            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_CONTROL_CODE);
+                        }
+                        else if (byte <= 0x87){
+                            packet->bytes_left = 4;
+                        }
+                        else if (byte <= 0x8f){
+                            packet->bytes_left = 5;
+                        }
+                        else {
+                            // variable length, multi segment commands...
+                            // not implemented currently so we skip over
+                            // these bytes as per specs
+
+                            // handling the header later
+                            packet->bytes_left = 1;
+                            packet->handle_variable_length_cmd_header = 1;
+                        }
+                    }
+                    else {
+                        packet->bytes_left = c1_code_length[byte - 0x80] - 1;
+                    }
+                }
+                // G1 or G3 codes
+                else {
+                    if (packet->is_ext_code && byte != 0xA0){
+                        // only the CC symbol takes a spot, all other spots are unused
+                        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_CHARACTER);
+                    }
+                    packet->bytes_left = 0;
+                }
+            } // if (0 == packet->bytes_left)
+            else {
+
+                // validate define window commands
+                if (packet->code >= 0x98 && packet->code <= 0x9F && !packet->is_ext_code){
+                    // determining which parameter is being read
+                    switch(c1_code_length[packet->code - 0x80] - 1 - packet->bytes_left){
+                        case 3: // anchor point and row count
+                        {
+                            int anchor_point = byte >> 4;
+                            int row_count = (byte & 0xf) + 1;
+                            if (anchor_point < 0 || anchor_point > 8){
+                                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_WINDOW_POSITION);
+                            }
+                            if (row_count > 12){ // as per specs
+                                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_WINDOW_SIZE);
+                            }
+                        }
+                        case 4: // column_count
+                        {
+                            int column_count = byte & 0x3f + 1;
+                            // maybe also have additional check to see if it is 4x3 or 16x9
+                            // since this changes the upper bound of column_count
+                            if (column_count > 42){ // as per specs
+                                status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_WINDOW_SIZE);
+                            }
+                        }
+                    }
+                }
+                // Handling Variable Length Command Codes
+                else if (packet->code >= 0x90 && packet->code <= 0x9F && packet->is_ext_code){
+                    if (packet->handle_variable_length_cmd_header){
+                        packet->bytes_left = byte & 0x1f;
+                        packet->handle_variable_length_cmd_header = 0;
+                    }
+                }
+                --(packet->bytes_left);
+            } // else
+        }
+        if (packet->bytes_left > packet->block_size){
+            // longer command than remaining service block length
+            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_ABNORMAL_CONTROL_CODE);
+        }
+    }
+    return LIBCAPTION_OK;
 }
 ////////////////////////////////////////////////////////////////////////////////
 int caption_frame_from_text(caption_frame_t* frame, const utf8_char_t* data)

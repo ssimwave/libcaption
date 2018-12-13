@@ -84,10 +84,13 @@ int eia608_parse_midrowchange(uint16_t cc_data, int* chan, eia608_style_t* style
 // control command
 eia608_control_t eia608_parse_control(uint16_t cc_data, int* cc)
 {
+    // if cc_data is tab offset control code
     if (0x0200 & cc_data) {
+        // check channel (channel 1 is 0x00, channel 2 is 0x01)
         (*cc) = (cc_data & 0x0800 ? 0x01 : 0x00);
         return (eia608_control_t)(0x177F & cc_data);
     } else {
+        // checking field (channel 1,2 is field 1, channel 3,4 is field 2)
         (*cc) = (cc_data & 0x0800 ? 0x01 : 0x00) | (cc_data & 0x0100 ? 0x02 : 0x00);
         return (eia608_control_t)(0x167F & cc_data);
     }

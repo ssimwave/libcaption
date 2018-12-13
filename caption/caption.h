@@ -30,6 +30,7 @@ extern "C" {
 #include "eia608.h"
 #include "utf8.h"
 #include "xds_data.h"
+#include "dtvcc.h"
 
 // ssize_t is POSIX and does not exist on Windows
 #if defined(_MSC_VER)
@@ -70,17 +71,19 @@ typedef struct {
     unsigned int rup : 2; //< roll-up line count minus 1
     int8_t row, col;
     uint16_t cc_data;
+    dtvcc_packet_t dtvcc_packet;
 } caption_frame_state_t;
 
 typedef enum {
     cc_type_ntsc_cc_field_1 = 0,
     cc_type_ntsc_cc_field_2 = 1,
     cc_type_dtvcc_packet_data = 2,
-    cc_type_dtvcc_packet_start = 3,
+    cc_type_dtvcc_packet_header = 3,
 } cea708_cc_type_t;
 
 
 typedef enum {
+  // 608 and common
   LIBCAPTION_DETAIL_OFF_SCREEN              = 1 << 1,
   LIBCAPTION_DETAIL_DUPLICATE_CONTROL       = 1 << 2,
   LIBCAPTION_DETAIL_UNKNOWN_COMMAND         = 1 << 3,
@@ -95,14 +98,29 @@ typedef enum {
   LIBCAPTION_DETAIL_POPON_OOS_ERROR         = 1 << 12,
   LIBCAPTION_DETAIL_POPON_MISSING_ERROR     = 1 << 13,
   LIBCAPTION_DETAIL_POPON_ERROR             = 1 << 14,
+
   LIBCAPTION_XDS_INVALID_CHARACTERS         = 1 << 15,
   LIBCAPTION_XDS_CHECKSUM_ERROR             = 1 << 16,
-  LIBCAPTION_XDS_INVALID_PKT_STRUCTURE      = 1 << 17
+  LIBCAPTION_XDS_INVALID_PKT_STRUCTURE      = 1 << 17,
+
+  // 708
+  LIBCAPTION_DETAIL_SEQUENCE_DISCONTINUITY  = 1 << 18,
+  LIBCAPTION_DETAIL_ABNORMAL_SERVICE_BLOCK  = 1 << 19,
+  LIBCAPTION_DETAIL_ABNORMAL_CONTROL_CODE   = 1 << 20,
+  LIBCAPTION_DETAIL_ABNORMAL_WINDOW_POSITION= 1 << 21,
+  LIBCAPTION_DETAIL_ABNORMAL_WINDOW_SIZE    = 1 << 22,
+  LIBCAPTION_DETAIL_ABNORMAL_CHARACTER      = 1 << 23,
+  LIBCAPTION_DETAIL_DTVCC_PACKING_MISMATCH  = 1 << 24
+
 } caption_frame_status_detail_type;
 
 typedef struct {
   int types;
+  int num_services_708;
   int packetErrors;
+  int packetLoss;
+  unsigned int hasCEA608 : 1;
+  unsigned int hasCEA708 : 1;
 } caption_frame_status_detail_t;
 
 static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
@@ -218,7 +236,14 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
 /*! \brief
     \param
 */
-libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp, rollup_state_machine* rsm, popon_state_machine* psm, cea708_cc_type_t type);
+libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp,
+                                         rollup_state_machine* rsm, popon_state_machine* psm,
+                                         cea708_cc_type_t type);
+
+/*! \brief
+    \param
+*/
+libcaption_status_t caption_frame_decode_dtvcc(caption_frame_t* frame, uint16_t cc_data, double timestamp, cea708_cc_type_t type);
 /*! \brief
     \param
 */

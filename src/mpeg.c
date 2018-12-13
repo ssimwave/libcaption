@@ -233,7 +233,7 @@ void sei_dump_messages(sei_message_t* head, double timestamp)
         fprintf(stderr, "\n");
 
         if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
-            if (LIBCAPTION_OK != cea708_parse_h262(sei_message_data(msg), sei_message_size(msg), &cea708)) {
+            if (LIBCAPTION_OK != cea708_parse_h262(sei_message_data(msg), sei_message_size(msg), &cea708, NULL)) {
                 fprintf(stderr, "cea708_parse error\n");
             } else {
                 cea708_dump(&cea708);
@@ -387,7 +387,7 @@ libcaption_status_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame,
 
     for (msg = sei_message_head(sei); msg; msg = sei_message_next(msg)) {
         if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
-            cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), &cea708);
+            cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), &cea708, &frame->detail);
             status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708, rsm, psm));
         }
     }
@@ -706,7 +706,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
             header_size = 4;
             if (STREAM_TYPE_H262 == stream_type && scpos > header_size) {
                 cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
-                packet->status = libcaption_status_update(packet->status, cea708_parse_h262(&packet->data[header_size], scpos - header_size, cea708));
+                packet->status = libcaption_status_update(packet->status, cea708_parse_h262(&packet->data[header_size], scpos - header_size, cea708, &frame->detail));
                 _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, rsm, psm);
             }
             break;
@@ -718,7 +718,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
                 for (sei_message_t* msg = sei_message_head(&sei); msg; msg = sei_message_next(msg)) {
                     if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
                         cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
-                        packet->status = libcaption_status_update(packet->status, cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), cea708));
+                        packet->status = libcaption_status_update(packet->status, cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), cea708, &frame->detail));
                         _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, rsm, psm);
                     }
                 }
@@ -743,7 +743,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 //     cea708_init(&cea708);
 //     size_t size = mpeg_bitstream_size(packet, STREAM_TYPE_H262);
 //     const uint8_t* data = mpeg_bitstream_data(packet, STREAM_TYPE_H262);
-//     status = cea708_parse_h262(data, size, &cea708);
+//     status = cea708_parse_h262(data, size, &cea708, &frame->detail);
 //     // cea708_dump(&cea708);
 //     status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708, dts + cts));
 
