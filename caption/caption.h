@@ -124,7 +124,7 @@ typedef struct {
 } caption_frame_status_detail_t;
 
 static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
-  return d->types & t;
+  return !!(d->types & t);
 }
 
 static inline void status_detail_set(caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {

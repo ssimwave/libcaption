@@ -71,7 +71,7 @@ libcaption_status_t xds_decode(caption_frame_t* frame, uint16_t cc)
         case 0: // A control code was seen after a non-XDS data stream
             xds->state = 1;
             uint8_t control_code = (cc & 0x0F00) >> 8;
-            uint8_t type_code = (cc & 0x00FF);
+            uint8_t type_code = (cc & 0x007F);
 
             // specifications don't cover control code of 0
             // so switching state back to 0 (might be wrong behaviour)
