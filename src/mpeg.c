@@ -628,7 +628,14 @@ cea708_t* _mpeg_bitstream_cea708_front(mpeg_bitstream_t* packet) { return _mpeg_
 cea708_t* _mpeg_bitstream_cea708_back(mpeg_bitstream_t* packet) { return _mpeg_bitstream_cea708_at(packet, packet->latent - 1); }
 cea708_t* _mpeg_bitstream_cea708_emplace_back(mpeg_bitstream_t* packet, double timestamp)
 {
-    ++packet->latent;
+    assert(packet->latent <= MAX_REFRENCE_FRAMES);
+    if (packet->latent == MAX_REFRENCE_FRAMES) {
+        // Overwrite the oldest.
+        packet->front = (packet->front + 1) % MAX_REFRENCE_FRAMES;
+    }
+    else {
+        ++packet->latent;
+    }
     cea708_t* cea708 = _mpeg_bitstream_cea708_back(packet);
     cea708_init(cea708, timestamp);
     return cea708;
