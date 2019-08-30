@@ -595,21 +595,7 @@ uint8_t mpeg_bitstream_packet_type(mpeg_bitstream_t* packet, unsigned stream_typ
     }
 }
 
-// TODO optomize
-// static size_t find_start_code_increnental(const uint8_t* data, size_t size, size_t prev_size)
-// {
-//     // prev_size MUST be at least 4
-//     assert(3 < prev_size);
-//     uint32_t start_code = 0xffffffff;
-//     for (size_t i = prev_size - 3; i < size; ++i) {
-//         start_code = (start_code << 8) | data[i];
-//         if (0x00000100 == (start_code & 0xffffff00)) {
-//             return i - 3;
-//         }
-//     }
-//     return 0;
-// }
-
+/* For reference.
 static size_t find_start_code(const uint8_t* data, size_t size)
 {
     uint32_t start_code = 0xffffffff;
@@ -617,6 +603,30 @@ static size_t find_start_code(const uint8_t* data, size_t size)
         start_code = (start_code << 8) | data[i];
         if (0x00000100 == (start_code & 0xffffff00)) {
             return i - 3;
+        }
+    }
+    return 0;
+}
+*/
+
+// Don't always search from 1, skip more.
+static size_t find_start_code(const uint8_t* data, size_t size, size_t start) {
+    if (size >= 4) {
+        if (start < 3) {
+            start = 3;
+        }
+        size--; // The above requires one extra byte after 00 00 01.
+        for (size_t i = start; i < size; ) {
+            if (data[i] == 1) {
+                if (data[i - 1] == 0 && data[i - 2] == 0) {
+                    return i - 2;
+                }
+            }
+            else if (data[i] == 0) {
+                i++; // Next may be 1.
+                continue;
+            }
+            i += 3; // Next 2 positions are guaranteed not to have a match.
         }
     }
     return 0;
@@ -689,8 +699,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 {
     if (MAX_NALU_SIZE <= packet->size) {
         packet->status = LIBCAPTION_ERROR;
-        ++(frame->detail.packetErrors);
-        // fprintf(stderr, "LIBCAPTION_ERROR\n");
+        ++frame->detail.packetErrors;
         return 0;
     }
 
@@ -702,10 +711,11 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
     sei_t sei;
     size_t header_size, scpos;
     packet->status = LIBCAPTION_OK;
+    size_t start_pos = packet->size; // No need to rescan from the beginning, we know 00 00 01 does not exist in packet->size bytes.
     memcpy(&packet->data[packet->size], data, size);
     packet->size += size;
 
-    while (packet->status == LIBCAPTION_OK && 0 < (scpos = find_start_code(&packet->data[0], packet->size))) {
+    while (packet->status == LIBCAPTION_OK && 0 < (scpos = find_start_code(&packet->data[0], packet->size, start_pos))) {
         switch (mpeg_bitstream_packet_type(packet, stream_type)) {
         default:
             break;
@@ -736,7 +746,9 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 
         packet->size -= scpos;
         memmove(&packet->data[0], &packet->data[scpos], packet->size);
+        start_pos = 0;
     }
+    // Pending packet->size bytes will not be rescanned when there is more data.
 
     return size;
 }
