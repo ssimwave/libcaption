@@ -50,6 +50,7 @@ typedef struct {
     // Should probablly be a linked list
     size_t front;
     size_t latent;
+    size_t parse_marker;
     cea708_t cea708[MAX_REFRENCE_FRAMES];
 } mpeg_bitstream_t;
 
