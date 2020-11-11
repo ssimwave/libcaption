@@ -575,6 +575,7 @@ void mpeg_bitstream_init(mpeg_bitstream_t* packet)
     packet->size = 0;
     packet->front = 0;
     packet->latent = 0;
+    packet->parse_marker = 0;
     packet->status = LIBCAPTION_OK;
 }
 
@@ -711,11 +712,18 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
     sei_t sei;
     size_t header_size, scpos;
     packet->status = LIBCAPTION_OK;
-    size_t start_pos = packet->size; // No need to rescan from the beginning, we know 00 00 01 does not exist in packet->size bytes.
     memcpy(&packet->data[packet->size], data, size);
     packet->size += size;
 
-    while (packet->status == LIBCAPTION_OK && 0 < (scpos = find_start_code(&packet->data[0], packet->size, start_pos))) {
+    while (packet->status == LIBCAPTION_OK) {
+        scpos = find_start_code(&packet->data[0], packet->size, packet->parse_marker);
+        if (0 == scpos) {
+            // No need to rescan from the beginning when this function is called next.
+            // We know 00 00 01 does not exist in packet->size bytes.
+            packet->parse_marker = packet->size;
+            break;
+        }
+
         switch (mpeg_bitstream_packet_type(packet, stream_type)) {
         default:
             break;
@@ -744,11 +752,13 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
             break;
         }
 
+        // Part of the bitstream has been consumed, throw is out and move the
+        // remaining bytes to the start of packet->data.  Parse marker needs to be
+        // reset here since it is always where we will resume parsing for the start code.
         packet->size -= scpos;
         memmove(&packet->data[0], &packet->data[scpos], packet->size);
-        start_pos = 0;
+        packet->parse_marker = 0;
     }
-    // Pending packet->size bytes will not be rescanned when there is more data.
 
     return size;
 }
