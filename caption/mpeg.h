@@ -63,6 +63,10 @@ void mpeg_bitstream_init(mpeg_bitstream_t* packet);
 size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size,
                             unsigned stream_type, double dts, double cts, rollup_state_machine* rsm,
                             popon_state_machine* psm);
+
+size_t mpeg_avc_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size,
+                            unsigned stream_type, double dts, double cts, rollup_state_machine* rsm,
+                            popon_state_machine* psm, size_t nal_field_length_size);
 /*! \brief
     \param
 */
