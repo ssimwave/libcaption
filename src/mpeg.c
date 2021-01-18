@@ -579,18 +579,15 @@ void mpeg_bitstream_init(mpeg_bitstream_t* packet)
     packet->status = LIBCAPTION_OK;
 }
 
-uint8_t mpeg_bitstream_packet_type(mpeg_bitstream_t* packet, unsigned stream_type)
+uint8_t mpeg_bitstream_packet_type(uint8_t packet_type_byte, unsigned stream_type)
 {
-    if (4 > packet->size) {
-        return 0;
-    }
     switch (stream_type) {
     case STREAM_TYPE_H262:
-        return packet->data[3];
+        return packet_type_byte;
     case STREAM_TYPE_H264:
-        return packet->data[3] & 0x1F;
+        return packet_type_byte & 0x1F;
     case STREAM_TYPE_H265:
-        return (packet->data[3] >> 1) & 0x3F;
+        return (packet_type_byte >> 1) & 0x3F;
     default:
         return 0;
     }
@@ -723,8 +720,14 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
             packet->parse_marker = packet->size;
             break;
         }
+        
+        if (4 > packet->size) {
+            // Not enough data to parse anything yet
+            break;
+        }
 
-        switch (mpeg_bitstream_packet_type(packet, stream_type)) {
+        const uint8_t packet_type_byte = packet->data[3];
+        switch (mpeg_bitstream_packet_type(packet_type_byte, stream_type)) {
         default:
             break;
         case H262_SEI_PACKET:
@@ -762,6 +765,91 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
 
     return size;
 }
+
+
+size_t mpeg_avc_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size,
+                            unsigned stream_type, double dts, double cts, rollup_state_machine* rsm,
+                            popon_state_machine* psm, size_t nal_field_length_size) {
+
+    assert(4 == nal_field_length_size || 2 == nal_field_length_size || 1 == nal_field_length_size);
+    assert(STREAM_TYPE_H264 == stream_type);
+
+    if (MAX_NALU_SIZE <= packet->size) {
+        packet->status = LIBCAPTION_ERROR;
+        ++frame->detail.packetErrors;
+        return 0;
+    }
+
+    // consume upto MAX_NALU_SIZE bytes
+    if (MAX_NALU_SIZE <= packet->size + size) {
+        size = MAX_NALU_SIZE - packet->size;
+    }
+
+    memcpy(&packet->data[packet->size], data, size);
+    packet->size += size;
+    if (nal_field_length_size > size) {
+        // Assume that the next chunk of data will be the remaining NAL data
+        return 0;
+    }
+
+    sei_t sei;
+    size_t header_size;
+    size_t nal_length = 0;
+
+    packet->status = LIBCAPTION_OK;
+
+    while (packet->status == LIBCAPTION_OK) {
+        // Field length bytes are in big endian order
+        if (nal_field_length_size > packet->size) {
+            break;
+        }
+
+        switch (nal_field_length_size) {
+            case 1:
+                nal_length = packet->data[0];
+                break;
+            case 2:
+                nal_length = (packet->data[0] << 8) | packet->data[1];
+                break;
+            case 4:
+                nal_length = (packet->data[0] << 24) | (packet->data[1] << 16) | (packet->data[2] << 8) | packet->data[3];
+                break;
+        }
+        
+        if (nal_length > packet->size) {
+            // Unlikely, but could be a partial packet
+            break;
+        }
+        
+        const uint8_t packet_type_byte = packet->data[nal_field_length_size];
+        switch (mpeg_bitstream_packet_type(packet_type_byte, stream_type)) {
+        default:
+            break;
+        case H264_SEI_PACKET:
+            // Skip over NAL length field and packet type byte
+            packet->status = libcaption_status_update(packet->status, sei_parse(&sei, &packet->data[nal_field_length_size + 1], nal_length - 1, dts + cts));
+            for (sei_message_t* msg = sei_message_head(&sei); msg; msg = sei_message_next(msg)) {
+                if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
+                    cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
+                    packet->status = libcaption_status_update(packet->status, cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), cea708, &frame->detail));
+                    _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, rsm, psm);
+                }
+            }
+            sei_free(&sei);
+            break;
+        }
+
+        // Part of the bitstream has been consumed, throw is out and move the
+        // remaining bytes to the start of packet->data.  Parse marker needs to be
+        // reset here since it is always where we will resume parsing for the start code.
+        const size_t end_of_nal = nal_length + nal_field_length_size;
+        packet->size -= end_of_nal;
+        memmove(&packet->data[0], &packet->data[end_of_nal], packet->size);
+    }
+
+    return size;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // // h262
 // libcaption_status_t h262_user_data_to_caption_frame(caption_frame_t* frame, mpeg_bitstream_t* packet, double dts, double cts)
