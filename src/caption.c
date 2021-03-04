@@ -47,10 +47,8 @@ void status_detail_init(caption_frame_status_detail_t* d)
 {
     d->types = 0;
     d->num_services_708 = 0;
-    d->packetErrors = 0;
     d->packetLoss = 0;
-    d->hasCEA608 = 0;
-    d->hasCEA708 = 0;
+    d->frameValid = 0;
 }
 
 void caption_frame_init(caption_frame_t* frame)
@@ -61,6 +59,15 @@ void caption_frame_init(caption_frame_t* frame)
     caption_frame_buffer_clear(&frame->front);
     status_detail_init(&frame->detail);
 }
+
+void caption_frame_container_init(caption_frame_container_t* container) {
+    container->packetErrors = 0;
+    caption_frame_init(&container->field_1_608);
+    caption_frame_init(&container->field_2_608);
+    caption_frame_init(&container->dtvcc_708);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
 static caption_frame_cell_t* frame_buffer_cell(caption_frame_buffer_t* buff, int row, int col)
@@ -348,7 +355,7 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
 
 libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data,
                                          double timestamp, rollup_state_machine* rsm,
-                                         popon_state_machine* psm, cea708_cc_type_t type)
+                                         popon_state_machine* psm, int process_xds)
 {
     if (!eia608_parity_verify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
@@ -375,9 +382,9 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     }
 
     frame->state.cc_data = cc_data;
-    if (cc_type_ntsc_cc_field_2 == type && frame->xds.state) {
+    if (process_xds && frame->xds.state) {
         frame->status = xds_decode(frame, cc_data);
-    } else if (cc_type_ntsc_cc_field_2 == type && eia608_is_xds(cc_data)) {
+    } else if (process_xds && eia608_is_xds(cc_data)) {
         frame->status = xds_decode(frame, cc_data);
     } else if (eia608_is_control(cc_data)) {
         frame->status = caption_frame_decode_control(frame, cc_data);
@@ -815,7 +822,7 @@ void update_rsm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                 rsm->oos_error = 1;
 
             rsm->cur_state  = 1 << CR;
-            rsm->next_state = (1 << PACR);	
+            rsm->next_state = (1 << PACR);
             ++rsm->cr;
         }
     }
@@ -875,14 +882,14 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
         switch (cmd) {
             case eia608_control_erase_non_displayed_memory:
                 psm->cur_state = 1 << ENM;
-                psm->next_state = 1 << PAC;	
+                psm->next_state = 1 << PAC;
                 break;
 
             case eia608_tab_offset_1:
             case eia608_tab_offset_2:
             case eia608_tab_offset_3:
                 psm->cur_state  = 1 << TOFF;
-                psm->next_state = (1 << PAC | 1 << EDM);	
+                psm->next_state = (1 << PAC | 1 << EDM);
                 break;
 
             case eia608_control_erase_display_memory:
@@ -890,7 +897,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                     psm->oos_error = 1;
 
                 psm->cur_state  = 1 << EDM;
-                psm->next_state = (1 << EOC);	
+                psm->next_state = (1 << EOC);
                 ++psm->edm;
                 break;
 
@@ -899,7 +906,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                     psm->oos_error = 1;
 
                 psm->cur_state  = 1 << EOC;
-                psm->next_state = (1 << RCL);	
+                psm->next_state = (1 << RCL);
                 ++psm->eoc;
                 if (!psm->pac || !psm->edm)
                     psm->missing_error = 1;
@@ -912,4 +919,11 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                 break;
         }
     }
+}
+
+void init_state_machine_608_container(state_machine_608_container_t* container) {
+    init_rsm(&container->field_1_rsm);
+    init_rsm(&container->field_2_rsm);
+    init_psm(&container->field_1_psm);
+    init_psm(&container->field_2_psm);
 }
