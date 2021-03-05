@@ -376,7 +376,12 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     // skip duplicate control commands. We also skip duplicate specialna to match the behaviour of iOS/vlc
     if ((eia608_is_specialna(cc_data) || eia608_is_control(cc_data)) && cc_data == frame->state.cc_data) {
         frame->status = LIBCAPTION_OK;
-        // we claim this is bad.. what is the case?
+        // It is expected that some transmitters send duplicate control commands
+        // This is mostly a legacy thing for redundancy, since in the analog world captions on line 21
+        // could be misinterpreted when there are signal quality issues.
+        // Reference:
+        // https://www.govinfo.gov/content/pkg/CFR-2007-title47-vol1/pdf/CFR-2007-title47-vol1-sec15-119.pdf
+        // (15.119, p. 797)
         status_detail_set(&frame->detail, LIBCAPTION_DETAIL_DUPLICATE_CONTROL);
         return frame->status;
     }
