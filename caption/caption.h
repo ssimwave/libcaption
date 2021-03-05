@@ -72,6 +72,7 @@ typedef struct {
     int8_t row, col;
     uint16_t cc_data;
     dtvcc_packet_t dtvcc_packet;
+    int duplicate_control_commands;
 } caption_frame_state_t;
 
 typedef enum {

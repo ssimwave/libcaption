@@ -40,7 +40,7 @@ void caption_frame_state_clear(caption_frame_t* frame)
     frame->write = 0;
     frame->timestamp = -1;
     frame->state = (caption_frame_state_t){ 0, 0, 0, SCREEN_ROWS - 1, 0, 0 ,
-                                            (dtvcc_packet_t){0}}; // clear global state
+                                            (dtvcc_packet_t){0}, 0}; // clear global state
 }
 
 void status_detail_init(caption_frame_status_detail_t* d)
@@ -382,8 +382,12 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
         // Reference:
         // https://www.govinfo.gov/content/pkg/CFR-2007-title47-vol1/pdf/CFR-2007-title47-vol1-sec15-119.pdf
         // (15.119, p. 797)
-        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_NO_DUPLICATE_CONTROL);
+        ++frame->state.duplicate_control_commands;
         return frame->status;
+    }
+
+    if (eia608_is_control(cc_data) && 0 == frame->state.duplicate_control_commands && 0 != frame->state.cc_data) {
+        status_detail_set(&frame->detail, LIBCAPTION_DETAIL_NO_DUPLICATE_CONTROL);
     }
 
     frame->state.cc_data = cc_data;
