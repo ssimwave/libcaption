@@ -151,7 +151,6 @@ typedef struct {
 } caption_frame_container_t;
 
 void caption_frame_container_init(caption_frame_container_t* container);
-void caption_frame_container_init(caption_frame_container_t* container);
 
 /*!
     \brief Initializes an allocated caption_frame_t instance
