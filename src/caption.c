@@ -47,10 +47,8 @@ void status_detail_init(caption_frame_status_detail_t* d)
 {
     d->types = 0;
     d->num_services_708 = 0;
-    d->packetErrors = 0;
     d->packetLoss = 0;
-    d->hasCEA608 = 0;
-    d->hasCEA708 = 0;
+    d->frameValid = 0;
 }
 
 void caption_frame_init(caption_frame_t* frame)
@@ -61,6 +59,15 @@ void caption_frame_init(caption_frame_t* frame)
     caption_frame_buffer_clear(&frame->front);
     status_detail_init(&frame->detail);
 }
+
+void caption_frame_container_init(caption_frame_container_t* container) {
+    container->packetErrors = 0;
+    caption_frame_init(&container->field_1_608);
+    caption_frame_init(&container->field_2_608);
+    caption_frame_init(&container->dtvcc_708);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers
 static caption_frame_cell_t* frame_buffer_cell(caption_frame_buffer_t* buff, int row, int col)
@@ -310,13 +317,13 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     char char1[5], char2[5];
     size_t chars = eia608_to_utf8(cc_data, &chan, &char1[0], &char2[0]);
 
-    // if chars is less 1, there's an invalid character
+    // if chars is less than 2, there could be an invalid character
     if (chars <= 1) {
         // if normal character
         if (eia608_is_basicna(cc_data)){
             uint8_t c1 = cc_data & 0x7f;
             uint8_t c2 = (cc_data & 0x7f00) >> 8;
-            if (c1 < 0x20 || c2 < 0x20){
+            if ((c1 > 0x00 && c1 < 0x20) || (c2 > 0x00 && c2 < 0x20)) {
                 status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
             }
         }
@@ -327,6 +334,10 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
             if (!(low >= 0x20 && low <= 0x3f && (high == 0x12 || high == 0x13))){
                 status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_EXT_CHARACTER);
             }
+        }
+        else {
+            // didn't map to anything at all
+            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
         }
     }
 
@@ -348,7 +359,7 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
 
 libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data,
                                          double timestamp, rollup_state_machine* rsm,
-                                         popon_state_machine* psm, cea708_cc_type_t type)
+                                         popon_state_machine* psm, int process_xds)
 {
     if (!eia608_parity_verify(cc_data)) {
         frame->status = LIBCAPTION_ERROR;
@@ -369,15 +380,20 @@ libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_dat
     // skip duplicate control commands. We also skip duplicate specialna to match the behaviour of iOS/vlc
     if ((eia608_is_specialna(cc_data) || eia608_is_control(cc_data)) && cc_data == frame->state.cc_data) {
         frame->status = LIBCAPTION_OK;
-        // we claim this is bad.. what is the case?
+        // It is expected that some transmitters send duplicate control commands
+        // This is mostly a legacy thing for redundancy, since in the analog world captions on line 21
+        // could be misinterpreted when there are signal quality issues.
+        // Reference:
+        // https://www.govinfo.gov/content/pkg/CFR-2007-title47-vol1/pdf/CFR-2007-title47-vol1-sec15-119.pdf
+        // (15.119, p. 797)
         status_detail_set(&frame->detail, LIBCAPTION_DETAIL_DUPLICATE_CONTROL);
         return frame->status;
     }
 
     frame->state.cc_data = cc_data;
-    if (cc_type_ntsc_cc_field_2 == type && frame->xds.state) {
+    if (process_xds && frame->xds.state) {
         frame->status = xds_decode(frame, cc_data);
-    } else if (cc_type_ntsc_cc_field_2 == type && eia608_is_xds(cc_data)) {
+    } else if (process_xds && eia608_is_xds(cc_data)) {
         frame->status = xds_decode(frame, cc_data);
     } else if (eia608_is_control(cc_data)) {
         frame->status = caption_frame_decode_control(frame, cc_data);
@@ -815,7 +831,7 @@ void update_rsm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                 rsm->oos_error = 1;
 
             rsm->cur_state  = 1 << CR;
-            rsm->next_state = (1 << PACR);	
+            rsm->next_state = (1 << PACR);
             ++rsm->cr;
         }
     }
@@ -875,14 +891,14 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
         switch (cmd) {
             case eia608_control_erase_non_displayed_memory:
                 psm->cur_state = 1 << ENM;
-                psm->next_state = 1 << PAC;	
+                psm->next_state = 1 << PAC;
                 break;
 
             case eia608_tab_offset_1:
             case eia608_tab_offset_2:
             case eia608_tab_offset_3:
                 psm->cur_state  = 1 << TOFF;
-                psm->next_state = (1 << PAC | 1 << EDM);	
+                psm->next_state = (1 << PAC | 1 << EDM);
                 break;
 
             case eia608_control_erase_display_memory:
@@ -890,7 +906,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                     psm->oos_error = 1;
 
                 psm->cur_state  = 1 << EDM;
-                psm->next_state = (1 << EOC);	
+                psm->next_state = (1 << EOC);
                 ++psm->edm;
                 break;
 
@@ -899,7 +915,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                     psm->oos_error = 1;
 
                 psm->cur_state  = 1 << EOC;
-                psm->next_state = (1 << RCL);	
+                psm->next_state = (1 << RCL);
                 ++psm->eoc;
                 if (!psm->pac || !psm->edm)
                     psm->missing_error = 1;
@@ -912,4 +928,11 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
                 break;
         }
     }
+}
+
+void init_state_machine_608_container(state_machine_608_container_t* container) {
+    init_rsm(&container->field_1_rsm);
+    init_rsm(&container->field_2_rsm);
+    init_psm(&container->field_1_psm);
+    init_psm(&container->field_2_psm);
 }

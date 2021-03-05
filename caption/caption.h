@@ -117,10 +117,8 @@ typedef enum {
 typedef struct {
   int types;
   int num_services_708;
-  int packetErrors;
   int packetLoss;
-  unsigned int hasCEA608 : 1;
-  unsigned int hasCEA708 : 1;
+  int frameValid;
 } caption_frame_status_detail_t;
 
 static inline int status_detail_is_set(const caption_frame_status_detail_t* d, const caption_frame_status_detail_type t) {
@@ -144,6 +142,15 @@ typedef struct {
     libcaption_status_t status;
     caption_frame_status_detail_t detail;
 } caption_frame_t;
+
+typedef struct {
+    unsigned int packetErrors;
+    caption_frame_t field_1_608;
+    caption_frame_t field_2_608;
+    caption_frame_t dtvcc_708;
+} caption_frame_container_t;
+
+void caption_frame_container_init(caption_frame_container_t* container);
 
 /*!
     \brief Initializes an allocated caption_frame_t instance
@@ -227,6 +234,16 @@ struct rollup_state_machine {
     int missing_error;
 };
 
+typedef struct {
+    rollup_state_machine field_1_rsm;
+    rollup_state_machine field_2_rsm;
+
+    popon_state_machine field_1_psm;
+    popon_state_machine field_2_psm;
+} state_machine_608_container_t;
+
+void init_state_machine_608_container(state_machine_608_container_t* container);
+
 void init_rsm(rollup_state_machine *rsm);
 void update_rsm(caption_frame_status_detail_t* details, eia608_control_t cmd, int pac,
                 rollup_state_machine *rsm);
@@ -238,7 +255,7 @@ void update_psm(caption_frame_status_detail_t* details, eia608_control_t cmd, in
 */
 libcaption_status_t caption_frame_decode(caption_frame_t* frame, uint16_t cc_data, double timestamp,
                                          rollup_state_machine* rsm, popon_state_machine* psm,
-                                         cea708_cc_type_t type);
+                                         int process_xds);
 
 /*! \brief
     \param

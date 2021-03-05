@@ -100,9 +100,8 @@ libcaption_status_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t
 /*! \brief
     \param
 */
-libcaption_status_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708,
-                                            rollup_state_machine* rsm,
-                                            popon_state_machine* psm);
+libcaption_status_t cea708_to_caption_frame(caption_frame_container_t* frame_container, cea708_t* cea708,
+                                            state_machine_608_container_t* sm_container);
 /*! \brief
     \param
 */
