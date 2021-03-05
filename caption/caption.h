@@ -72,7 +72,6 @@ typedef struct {
     int8_t row, col;
     uint16_t cc_data;
     dtvcc_packet_t dtvcc_packet;
-    int duplicate_control_commands;
 } caption_frame_state_t;
 
 typedef enum {
@@ -86,7 +85,7 @@ typedef enum {
 typedef enum {
   // 608 and common
   LIBCAPTION_DETAIL_OFF_SCREEN              = 1 << 1,
-  LIBCAPTION_DETAIL_NO_DUPLICATE_CONTROL    = 1 << 2,
+  LIBCAPTION_DETAIL_DUPLICATE_CONTROL       = 1 << 2,
   LIBCAPTION_DETAIL_UNKNOWN_COMMAND         = 1 << 3,
   LIBCAPTION_DETAIL_INVALID_CHARACTER       = 1 << 4,
   LIBCAPTION_DETAIL_PARITY_ERROR            = 1 << 5,
