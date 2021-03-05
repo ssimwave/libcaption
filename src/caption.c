@@ -317,13 +317,13 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
     char char1[5], char2[5];
     size_t chars = eia608_to_utf8(cc_data, &chan, &char1[0], &char2[0]);
 
-    // if chars is less 1, there's an invalid character
-    if (chars < 1) {
+    // if chars is less than 2, there could be an invalid character
+    if (chars <= 1) {
         // if normal character
         if (eia608_is_basicna(cc_data)){
             uint8_t c1 = cc_data & 0x7f;
             uint8_t c2 = (cc_data & 0x7f00) >> 8;
-            if (c1 < 0x20 || c2 < 0x20){
+            if ((c1 > 0x00 && c1 < 0x20) || (c2 > 0x00 && c2 < 0x20)) {
                 status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
             }
         }
@@ -334,6 +334,10 @@ libcaption_status_t caption_frame_decode_text(caption_frame_t* frame, uint16_t c
             if (!(low >= 0x20 && low <= 0x3f && (high == 0x12 || high == 0x13))){
                 status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_EXT_CHARACTER);
             }
+        }
+        else {
+            // didn't map to anything at all
+            status_detail_set(&frame->detail, LIBCAPTION_DETAIL_INVALID_CHARACTER);
         }
     }
 
